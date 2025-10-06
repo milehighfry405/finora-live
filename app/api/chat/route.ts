@@ -5,13 +5,19 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
+interface Message {
+  id: number
+  text: string
+  sender: 'user' | 'ai'
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { messages } = await request.json()
+    const { messages } = await request.json() as { messages: Message[] }
 
     // Convert messages to Claude format
-    const claudeMessages = messages.map((msg: any) => ({
-      role: msg.sender === 'user' ? 'user' : 'assistant',
+    const claudeMessages = messages.map((msg: Message) => ({
+      role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
       content: msg.text,
     }))
 
