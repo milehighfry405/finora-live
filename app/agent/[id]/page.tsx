@@ -62,6 +62,45 @@ export default function AgentPageV2() {
     completed: { step: 7, title: "Job Complete" },
   }
 
+  // Polling for job status (fallback if WebSocket doesn't work)
+  useEffect(() => {
+    if (!jobStatus?.job_id || !isJobRunning) return
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const status = await getJobStatus(jobStatus.job_id)
+        console.log("🔄 Poll result - Status:", status.status, "Progress:", status.progress)
+        setJobStatus(status)
+
+        // Update phases based on progress
+        if (status.progress) {
+          updatePhases(status.progress)
+        }
+
+        // Check for approval needed
+        if (status.status === "awaiting_approval") {
+          console.log("🔔 Status is awaiting_approval, fetching pending approvals...")
+          fetchPendingApprovals()
+        }
+
+        // Check if completed
+        if (status.status === "completed" || status.status === "failed") {
+          setIsJobRunning(false)
+          addChatMessage(
+            status.status === "completed"
+              ? "✅ Job completed successfully!"
+              : `❌ Error: ${status.error || "Job failed"}`,
+            "system"
+          )
+        }
+      } catch (error) {
+        console.error("Polling error:", error)
+      }
+    }, 2000) // Poll every 2 seconds
+
+    return () => clearInterval(pollInterval)
+  }, [jobStatus?.job_id, isJobRunning])
+
   // WebSocket connection
   useEffect(() => {
     if (!jobStatus?.job_id) return
@@ -152,13 +191,16 @@ export default function AgentPageV2() {
   }
 
   const handleStartJob = async () => {
+    console.log("🚀 START JOB CLICKED")
     setIsStarting(true)
     try {
+      console.log("🚀 Calling startJob API...")
       const response = await startJob({
         batch_size: null,
         owner_filter: null,
         auto_approve: false,
       })
+      console.log("🚀 startJob response:", response)
 
       setJobStatus({
         job_id: response.job_id,
@@ -179,35 +221,56 @@ export default function AgentPageV2() {
       })
 
       setIsJobRunning(true)
+      console.log("🚀 Job state updated, isJobRunning=true, job_id:", response.job_id)
       addChatMessage("Job started successfully!", "system")
     } catch (error) {
+      console.error("❌ START JOB ERROR:", error)
       addChatMessage(
         `Failed to start job: ${error instanceof Error ? error.message : "Unknown error"}`,
         "system"
       )
       console.error("Start job error:", error)
     } finally {
+      console.log("🚀 setIsStarting(false)")
       setIsStarting(false)
     }
   }
 
   const fetchPendingApprovals = async () => {
-    if (!jobStatus?.job_id) return
+    if (!jobStatus?.job_id) {
+      console.log("❌ No job_id, skipping fetchPendingApprovals")
+      return
+    }
+
+    console.log("📡 Fetching pending approvals for job:", jobStatus.job_id)
+    const railwayUrl = process.env.NEXT_PUBLIC_RAILWAY_URL || "https://web-production-77576.up.railway.app"
+    const url = `${railwayUrl}/api/dedup/pending/${jobStatus.job_id}`
+    console.log("📡 URL:", url)
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_RAILWAY_URL}/api/dedup/pending/${jobStatus.job_id}`
-      )
+      const response = await fetch(url)
+      console.log("📡 Response status:", response.status)
+
       if (response.ok) {
         const data = await response.json()
-        setDuplicatePairs(data.duplicate_pairs)
+        console.log("📡 Received data:", data)
+        console.log("📡 Duplicate pairs count:", data.duplicate_pairs?.length)
+        console.log("📡 First duplicate pair:", data.duplicate_pairs?.[0])
+        console.log("📡 Contact 1 data:", data.duplicate_pairs?.[0]?.contact_1)
+        console.log("📡 Contact 2 data:", data.duplicate_pairs?.[0]?.contact_2)
+
+        setDuplicatePairs(data.duplicate_pairs || [])
 
         // Auto-expand the approval phase
         setExpandedPhase("awaiting_approval")
-        addChatMessage(`⚠️ Found ${data.duplicate_pairs.length} duplicate pair(s) requiring your approval`, "system")
+        addChatMessage(`⚠️ Found ${data.duplicate_pairs?.length || 0} duplicate pair(s) requiring your approval`, "system")
+      } else {
+        console.error("❌ Response not ok:", response.status, response.statusText)
+        const text = await response.text()
+        console.error("❌ Response body:", text)
       }
     } catch (error) {
-      console.error("Failed to fetch pending approvals:", error)
+      console.error("❌ Failed to fetch pending approvals:", error)
     }
   }
 
@@ -414,13 +477,13 @@ export default function AgentPageV2() {
                         <div className="grid grid-cols-2 gap-4 mb-4">
                           <div className="border border-[#00fff2]/20 p-3">
                             <div className="font-mono text-xs text-[#00fff2]/60 mb-2">Contact A</div>
-                            <div className="text-[#00fff2] font-bold">{pair.contact_1?.name}</div>
-                            <div className="text-[#e0e0e0]/60 text-xs mt-1">{pair.contact_1?.email}</div>
+                            <div className="text-[#00fff2] font-bold">{pair.contact_1?.name || "Unknown"}</div>
+                            <div className="text-[#e0e0e0]/60 text-xs mt-1">{pair.contact_1?.email || "No email"}</div>
                           </div>
                           <div className="border border-[#00fff2]/20 p-3">
                             <div className="font-mono text-xs text-[#00fff2]/60 mb-2">Contact B</div>
-                            <div className="text-[#00fff2] font-bold">{pair.contact_2?.name}</div>
-                            <div className="text-[#e0e0e0]/60 text-xs mt-1">{pair.contact_2?.email}</div>
+                            <div className="text-[#00fff2] font-bold">{pair.contact_2?.name || "Unknown"}</div>
+                            <div className="text-[#e0e0e0]/60 text-xs mt-1">{pair.contact_2?.email || "No email"}</div>
                           </div>
                         </div>
 

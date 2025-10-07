@@ -3,7 +3,7 @@
  * Fetches real-time token usage and costs from LangSmith
  */
 
-const LANGSMITH_API_KEY = process.env.LANGSMITH_API_KEY || "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"
+const LANGSMITH_API_KEY = process.env.LANGSMITH_API_KEY || ""
 const LANGSMITH_PROJECT = process.env.LANGSMITH_PROJECT || "sfdc-dedup-agent"
 const LANGSMITH_ENDPOINT = "https://api.smith.langchain.com"
 

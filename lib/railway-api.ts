@@ -68,7 +68,11 @@ export interface ApprovalRequest {
  * Start a new deduplication job
  */
 export async function startJob(request: StartJobRequest = {}): Promise<{ job_id: string; status: string; message: string }> {
-  const response = await fetch(`${RAILWAY_API_URL}/api/dedup/start`, {
+  const url = `${RAILWAY_API_URL}/api/dedup/start`
+  console.log("🌐 startJob API call to:", url)
+  console.log("🌐 Request body:", request)
+
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -76,11 +80,17 @@ export async function startJob(request: StartJobRequest = {}): Promise<{ job_id:
     body: JSON.stringify(request),
   })
 
+  console.log("🌐 Response status:", response.status, response.statusText)
+
   if (!response.ok) {
-    throw new Error(`Failed to start job: ${response.statusText}`)
+    const errorText = await response.text()
+    console.error("🌐 Error response body:", errorText)
+    throw new Error(`Failed to start job: ${response.statusText} - ${errorText}`)
   }
 
-  return response.json()
+  const data = await response.json()
+  console.log("🌐 Response data:", data)
+  return data
 }
 
 /**
