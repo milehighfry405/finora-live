@@ -70,7 +70,7 @@ export default function AgentPageV2() {
       try {
         const status = await getJobStatus(jobStatus.job_id)
         console.log("🔄 Poll result - Status:", status.status, "Progress:", status.progress)
-        setJobStatus(status)
+        setJobStatus(status as JobStatus)
 
         // Update phases based on progress
         if (status.progress) {
@@ -196,8 +196,6 @@ export default function AgentPageV2() {
     try {
       console.log("🚀 Calling startJob API...")
       const response = await startJob({
-        batch_size: null,
-        owner_filter: null,
         auto_approve: false,
       })
       console.log("🚀 startJob response:", response)
