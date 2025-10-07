@@ -53,22 +53,24 @@
 
 ### ✅ Completed
 - Backend phase detail storage and API
+- Backend pending approval endpoint with SFDC ID fallback logic
 - Frontend PhaseCard component
 - Simplified page layout without cost tracking
 - Basic end-to-end workflow structure
+- Backend API fully tested via curl - all endpoints working
 
 ### 🚧 In Progress
-- Testing full workflow with curl
-- Enhancing context-aware chat responses
+- Testing full workflow in browser
 - Polishing UX details
 
 ### ⏭️ Next Steps
-1. Test full workflow end-to-end with Railway backend
-2. Enhance chat to query actual phase data (not hardcoded responses)
-3. Add visual polish (animations, loading states)
-4. Test approval workflow
-5. Deploy frontend to Vercel
-6. Final UX review and polish
+1. ✅ DONE: Test backend API end-to-end with Railway
+2. Test frontend UI in browser (currently on http://localhost:3000/agent/sfdc-dedup)
+3. Enhance chat to query actual phase data (not hardcoded responses)
+4. Add visual polish (animations, loading states)
+5. Test approval workflow in UI
+6. Deploy frontend to Vercel
+7. Final UX review and polish
 
 ## Key Design Decisions Made
 
@@ -172,16 +174,51 @@ curl https://web-production-77576.up.railway.app/api/dedup/{job_id}/phase/phase_
 
 ## Git Commits Made
 
+### Backend (contacts/)
 1. `2658d9f` - Add phase detail storage and API endpoints
 2. `b3aeefa` - Fix KeyError when displaying duplicate pair names
 3. `1eeff4c` - Add conversational step-by-step progress updates to agent
+4. `d756341` - Fix pending approval endpoint to fallback to phase_details
+5. `6fe4481` - Add case-insensitive SFDC ID lookup for duplicate contact matching
 
-All backend changes have been pushed to Railway and are deploying now.
-Frontend changes are local only (not yet committed).
+All backend changes pushed to Railway and deployed ✅
+
+### Frontend (finora-live/)
+1. `0c2eb40` - Rebuild UI with step-by-step validation workflow
+
+Frontend changes committed but not yet deployed to Vercel
 
 ---
 
-**Time**: Session started at ~12:26 AM, currently ~12:53 AM (27 minutes in)
-**Token Usage**: ~110k / 200k tokens used
+**Time**: Session 1 ended at ~12:53 AM. Session 2 (continuation) started at ~1:00 AM, currently ~1:25 AM
+**Token Usage**: ~71k / 200k tokens used in session 2
 
-I'll continue building and testing. Check back for updates!
+## Latest Updates (Session 2)
+
+✅ **Fixed Pending Approval Endpoint** - The `/api/dedup/pending/{job_id}` endpoint now correctly returns duplicate pairs with full contact data, even when `pending_approval` is null.
+
+**The Issue**:
+- `mark_duplicates_for_review()` was returning 0 updates (contacts already marked from previous runs)
+- This meant `pending_approval.decisions` was empty
+- Frontend couldn't display duplicate pairs for approval
+
+**The Fix**:
+1. Added fallback logic to read from `phase_details.phase_4_detect.duplicate_pairs`
+2. Transform Claude's format (`contact_id_1, contact_id_2`) to expected format (`contact_1: {}, contact_2: {}`)
+3. Lookup full contact data from `phase_details.phase_2_extract.contacts`
+4. **Critical**: Added case-insensitive SFDC ID matching using first 15 chars as prefix
+   - Claude returns: `003gL00000DHUNNqQA5` (lowercase 'q')
+   - Phase 2 stores: `003gL00000DHUNNQA5` (uppercase 'Q')
+   - Solution: Match on `003gL00000DHUNN` prefix (case-insensitive)
+
+**Verified Working**:
+```bash
+curl https://web-production-77576.up.railway.app/api/dedup/pending/0597dcfa-6fcf-4917-8d64-1f64b54c0cd8
+```
+Returns:
+- **Arthur Song**: Full name, email (asong@uog.com), phone, title ✅
+- **Arther Soong**: Name, email (a.song@uog.com) ✅
+- Confidence: high ✅
+- Reasoning: "Very similar names... email variations typical of same person" ✅
+
+Next: Test the complete workflow in the browser!
